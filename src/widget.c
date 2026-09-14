@@ -135,6 +135,7 @@ ZMK_SUBSCRIPTION(led_output_listener, zmk_split_peripheral_status_changed);
 #endif // IS_ENABLED(CONFIG_ZMK_BLE)
 
 #if IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
+
 void indicate_battery(void) {
     struct blink_item blink = {.duration_ms = CONFIG_RGBLED_WIDGET_BATTERY_BLINK_MS};
     uint8_t battery_level = zmk_battery_state_of_charge();
@@ -143,7 +144,9 @@ void indicate_battery(void) {
         k_sleep(K_MSEC(100));
         battery_level = zmk_battery_state_of_charge();
     };
-
+   
+    LOG_INF("Battery level %d", battery_level);
+        
     if (battery_level == 0) {
         LOG_INF("Battery level undetermined (zero), blinking magenta");
         blink.color = 5;
@@ -182,6 +185,27 @@ static int led_battery_listener_cb(const zmk_event_t *eh) {
 // run led_battery_listener_cb on battery state change event
 ZMK_LISTENER(led_battery_listener, led_battery_listener_cb);
 ZMK_SUBSCRIPTION(led_battery_listener, zmk_battery_state_changed);
+
+// デバッグ用の定周期呼び出し Start ////////////////////////////////////////////
+// バッテリーチェック間隔の設定（Kconfig で設定可能にする）
+#ifndef CONFIG_RGBLED_WIDGET_BATTERY_CHECK_INTERVAL_SEC
+#define CONFIG_RGBLED_WIDGET_BATTERY_CHECK_INTERVAL_SEC 5
+#endif
+
+static struct k_work_delayable battery_check_work;
+static void battery_check_handler(struct k_work *work) {
+    //indicate_battery();
+    k_work_schedule(&battery_check_work, K_SECONDS(CONFIG_RGBLED_WIDGET_BATTERY_CHECK_INTERVAL_SEC));
+}
+
+static int init_battery_check_timer(void) {
+    k_work_init_delayable(&battery_check_work, battery_check_handler);
+    k_work_schedule(&battery_check_work, K_SECONDS(CONFIG_RGBLED_WIDGET_BATTERY_CHECK_INTERVAL_SEC));
+    return 0;
+}
+
+SYS_INIT(init_battery_check_timer, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+// デバッグ用の定周期呼び出し End ///////////////////////////////////////////
 #endif // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
 
 uint8_t led_layer_color = 0;
